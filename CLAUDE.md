@@ -66,19 +66,55 @@ pytest -k test_login            # single test by name
 # Game server (to be added)
 ```
 
-## Kubernetes Deployment
+## GitOps Workflow
 
-Manifests live in `k8s/`. Use Kustomize overlays for environment differences.
+This repo follows GitOps: the cluster state is always derived from `main`. No direct `kubectl apply` to production.
 
+```
+feature branch  →  PR to main  →  CI (tests must pass)  →  merge
+                                                              ↓
+                                              CD: build image → push to GHCR
+                                                              ↓
+                                              CD: kustomize edit set image → commit to main
+                                                              ↓
+                                              ArgoCD detects change → syncs cluster
+```
+
+**Branch rules:**
+- All changes to `main` go through a PR.
+- The `test-backend` CI job must pass before merging.
+- Never push directly to `main`.
+
+**Secrets — never commit them.** Create the `backend-secret` manually in the cluster:
 ```bash
-# Apply to a cluster
+kubectl create secret generic backend-secret -n quiz \
+  --from-literal=DATABASE_URL=postgresql+asyncpg://... \
+  --from-literal=REDIS_URL=redis://... \
+  --from-literal=SECRET_KEY=... \
+  --from-literal=INTERNAL_SECRET=...
+```
+
+**ArgoCD setup (one-time):**
+```bash
+kubectl apply -k k8s/overlays/prod   # bootstrap before ArgoCD is installed
+kubectl apply -f k8s/argocd/application.yaml   # register the app with ArgoCD
+```
+
+**Manual apply (dev/debugging only):**
+```bash
 kubectl apply -k k8s/overlays/dev
-
-# Check rollout
-kubectl rollout status deployment/game-server -n quiz
-
-# Port-forward for local debugging
+kubectl rollout status deployment/backend -n quiz
 kubectl port-forward svc/backend 8000:8000 -n quiz
+```
+
+## Kubernetes Manifests
+
+```
+k8s/
+├── base/backend/     — Deployment, Service, ConfigMap (non-sensitive env vars)
+├── overlays/dev/     — 1 replica, latest tag
+├── overlays/prod/    — 2 replicas, tag updated by CD pipeline on each merge to main
+└── argocd/           — ArgoCD Application pointing at overlays/prod
 ```
 
 Each service needs a `Deployment`, `Service`, and (for frontend/backend) an `Ingress`. The `game-server` WebSocket service requires `nginx.ingress.kubernetes.io/proxy-read-timeout` and sticky sessions (`nginx.ingress.kubernetes.io/affinity: cookie`) so Socket.io connections are not disrupted by load balancing.

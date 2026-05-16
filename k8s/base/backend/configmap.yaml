@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: quiz
+data:
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
