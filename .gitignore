@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Env
+.env
+*.env
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+test.db
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
